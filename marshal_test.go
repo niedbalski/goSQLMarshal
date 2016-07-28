@@ -4,6 +4,8 @@ package sqlmarshal
 
 import (
 	"fmt"
+	goyaml "gopkg.in/yaml.v2"
+	"reflect"
 	"testing"
 )
 
@@ -64,7 +66,7 @@ func TestTagged(t *testing.T) {
 			anotherField: "another non struct field",
 		},
 	}
-	m, err := NewTypeSQLMarshaller(d)
+	m, err := NewTypeSQLMarshaller(d, "")
 	if err != nil {
 		t.Errorf("cannot create marshaler: %v", err)
 	}
@@ -118,7 +120,7 @@ func TestTaggedMultiPK(t *testing.T) {
 			anotherField: "another non struct field",
 		},
 	}
-	m, err := NewTypeSQLMarshaller(d)
+	m, err := NewTypeSQLMarshaller(d, "")
 	if err != nil {
 		t.Errorf("cannot create marshaler: %v", err)
 	}
@@ -153,7 +155,7 @@ func TestTaggedMultiPK(t *testing.T) {
 		t.Errorf("unexpected UPDATE statement: \nexpected: %q\nobtained: %q", expectedSQL, c)
 	}
 
-	m, err = NewTypeSQLMarshaller(dm)
+	m, err = NewTypeSQLMarshaller(dm, "")
 	if err != nil {
 		t.Errorf("cannot create marshaler: %v", err)
 	}
@@ -194,7 +196,7 @@ func TestUnTagged(t *testing.T) {
 			anotherField: "another non struct field",
 		},
 	}
-	m, err := NewTypeSQLMarshaller(d)
+	m, err := NewTypeSQLMarshaller(d, "")
 	if err != nil {
 		t.Errorf("cannot create marshaler: %v", err)
 	}
@@ -238,7 +240,7 @@ func doSQLCreate() (string, error) {
 		},
 	}
 
-	m, err := NewTypeSQLMarshaller(sample)
+	m, err := NewTypeSQLMarshaller(sample, "")
 	if err != nil {
 		return "", fmt.Errorf("cannot create marshaler: %v", err)
 	}
@@ -293,7 +295,7 @@ func doSQLInsert() (string, error) {
 		},
 	}
 
-	m, err := NewTypeSQLMarshaller(sample)
+	m, err := NewTypeSQLMarshaller(sample, "")
 	if err != nil {
 		return "", fmt.Errorf("cannot create marshaler: %v", err)
 	}
@@ -333,7 +335,7 @@ func doSQLUpdate() (string, error) {
 		AnotherField:    "just to show off",
 	}
 
-	m, err := NewTypeSQLMarshaller(sample)
+	m, err := NewTypeSQLMarshaller(sample, "")
 	if err != nil {
 		return "", fmt.Errorf("cannot create marshaler: %v", err)
 	}
@@ -356,4 +358,66 @@ func TestDocSampleUpdate(t *testing.T) {
 		t.Errorf("unexpected CREATE statement: \nexpected: %q\nobtained: %q", expectedSQL, c)
 	}
 
+}
+
+const (
+	ValidYAMLSchema string = `
+tables:
+  humans:
+    fields:
+      id:
+        type: int
+        unique: true
+        primary: true
+      created:
+        type: int
+  mamals:
+    fields:
+      id:
+        type: int
+      created:
+        type: string
+        unique: true`
+)
+
+type DatabaseSchema struct {
+	Tables map[string]map[string]interface{}
+}
+
+func TestCreateFromYAML(t *testing.T) {
+	var schema DatabaseSchema
+
+	err := goyaml.Unmarshal([]byte(ValidYAMLSchema), &schema)
+	if err != nil {
+		t.Errorf("%v", err)
+	}
+
+	var obtained []string
+	for table_name, table := range schema.Tables {
+		if fields, ok := table["fields"]; ok {
+			m, err := NewTypeSQLMarshaller(fields, table_name)
+			if err != nil {
+				t.Errorf("Cannot create marshaller: %v", err)
+			}
+
+			dr := &ANSISQLDriver{}
+
+			c, err := m.Create(dr)
+			if err != nil {
+				t.Errorf("cannot marshall to CREATE statement: %v", err)
+			}
+			obtained = append(obtained, c)
+		}
+	}
+
+	expected := []string{
+		"CREATE TABLE humans (id SMALLINT, created SMALLINT, PRIMARY KEY (id));",
+		"CREATE TABLE mamals (id SMALLINT, created VARCHAR);",
+	}
+
+	if !reflect.DeepEqual(obtained, expected) {
+		t.Errorf("unexpected CREATE statement: \nexpected: %q\nobtained: %q", expected, obtained)
+	}
+
+	t.Log(obtained)
 }
