@@ -4,9 +4,10 @@ package sqlmarshal
 
 import (
 	"fmt"
-	goyaml "gopkg.in/yaml.v2"
 	"reflect"
 	"testing"
+
+	goyaml "gopkg.in/yaml.v2"
 )
 
 type dumbFK struct {

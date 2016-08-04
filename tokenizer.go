@@ -419,7 +419,7 @@ func TokenizeMap(t map[interface{}]interface{}, name string) (*tokenized, error)
 	return &tokenized{fields: fields, name: name}, nil
 }
 
-// tokenize returns a new tokenized struct containing the
+// TokenizeType returns a new tokenized struct containing the
 // passed struct fields and their sql types.
 func TokenizeType(t reflect.Type, name string) (*tokenized, error) {
 	fieldCount := t.NumField()
